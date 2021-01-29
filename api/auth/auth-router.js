@@ -1,7 +1,33 @@
-const router = require('express').Router();
+const router = require("express").Router();
+const { insert, getByUsername } = require("./auth-model");
+const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
+const { jwtSecret } = require("../../config/secrets");
 
-router.post('/register', (req, res) => {
-  res.end('implement register, please!');
+router.post("/register", (req, res, next) => {
+  const user = req.body;
+  if (!user.username || !user.password) {
+    res.status(400).json({ message: "username and password required" });
+  } else {
+    const hash = bcrypt.hashSync(user.password, 8);
+
+    user.password = hash;
+
+    getByUsername(user.username)
+      .then((allegedUser) => {
+        if (allegedUser?.username) {
+          res.status(400).json({ message: "username taken" });
+        } else {
+          insert(user)
+            .then((user) => {
+              res.status(201).json(user);
+            })
+            .catch(next);
+        }
+      })
+      .catch(next);
+  }
+
   /*
     IMPLEMENT
     You are welcome to build additional middlewares to help with the endpoint's functionality.
@@ -28,8 +54,28 @@ router.post('/register', (req, res) => {
   */
 });
 
-router.post('/login', (req, res) => {
-  res.end('implement login, please!');
+router.post("/login", (req, res, next) => {
+  const user = req.body;
+  if (!user.username || !user.password) {
+    res.status(400).json({ message: "username and password required" });
+  } else {
+    getByUsername(user.username)
+      .then((allegedUser) => {
+        if (
+          !allegedUser?.username ||
+          !bcrypt.compareSync(user.password, allegedUser.password)
+        ) {
+          res.status(400).json({ message: "invalid credentials" });
+        } else {
+          const token = generateToken(user);
+          res.status(200).json({
+            message: `Welcome, ${user.username}`,
+            token,
+          });
+        }
+      })
+      .catch(next);
+  }
   /*
     IMPLEMENT
     You are welcome to build additional middlewares to help with the endpoint's functionality.
@@ -54,5 +100,22 @@ router.post('/login', (req, res) => {
       the response body should include a string exactly as follows: "invalid credentials".
   */
 });
+
+router.use((err, req, res, next) => {
+  res.status(500).json({ message: err.message });
+});
+
+function generateToken(user) {
+  const payload = {
+    subject: user.id,
+    username: user.username,
+  };
+
+  const options = {
+    expiresIn: "2m",
+  };
+
+  return jwt.sign(payload, jwtSecret, options);
+}
 
 module.exports = router;
