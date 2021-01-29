@@ -75,5 +75,5 @@ describe("[GET] on /jokes", () => {
   test("Returns error if token doesn't exist", async () => {
     const result = await request(server).get("/api/jokes");
     expect(result.body).toEqual({ message: "token required"});
-  });
+  }); 
 });
